@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading">Erro!</h4>
+            <p>{{ error }}</p>
+            <hr>
+            <p class="mb-0">Verifique se o arquivo VBP.xlsx existe na pasta dados_teste.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

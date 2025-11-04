@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block container_class %}container-fluid p-0{% endblock %}
+
+{% block content %}
+
+{% include "./components/header.html" %}
+
+{% include "./components/navigation.html" %}
+
+
+
+<div class="content-wrapper">
+    <div class="dashboard-content">
+        <div class="container-fluid">
+
+    <!-- Filtros padrão do site -->
+   
+
+    <!-- Gráficos full-width -->
+    <div class="row" style="margin: 20px; padding:40px">
+        {% for chart in charts %}
+        <div class="col-12 col-md-12 mb-4 rounded bg-dark">
+            <div class="card border-0 shadow-sm h-100 ">
+                <div class="text-center">
+                    <h5 class="mb-0">{{ chart.title }}</h5>
+                </div>
+                <div class="p-0 d-flex justify-content-center">
+                    <div class="chart-container " style="width:100%;">
+                        <div id="principal-chart-{{ loop.index }}" class="plotly-chart" style="min-height:520px;width:100%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        {% for chart in charts %}
+        
+        try {
+            // ETAPA 1: Injeta a string JSON do Python como uma STRING JavaScript segura.
+            var chartString{{ loop.index }} = {{ chart.chart|tojson|safe }};
+            
+            // ETAPA 2: Converte essa STRING JavaScript em um OBJETO JavaScript.
+            var c{{ loop.index }} = JSON.parse(chartString{{ loop.index }});
+    
+            // ETAPA 3: Renderiza o gráfico
+            Plotly.newPlot('principal-chart-{{ loop.index }}', c{{ loop.index }}.data, c{{ loop.index }}.layout, {
+                responsive:true, displaylogo:false
+            });
+    
+        } catch (e) {
+            // Se algo der errado, isso nos dirá no console do navegador (F12)
+            console.error("Falha ao renderizar o gráfico {{ loop.index }}:", e);
+            console.error("String JSON que falhou:", {{ chart.chart|tojson|safe }});
+        }
+    
+        {% endfor %}
+        
+        // O código de resize
+        window.addEventListener('resize', function(){
+            {% for chart in charts %}
+            try {
+                Plotly.Plots.resize(document.getElementById('principal-chart-{{ loop.index }}'));
+            } catch(e) {
+                // Ignora erros
+            }
+            {% endfor %}
+        });
+    });
+    </script>
+{% endblock %}
+
+

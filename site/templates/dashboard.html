@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="dashboard-header text-center mb-5">
+        <h1 class="display-4 mb-3">📊 Dashboard de Planilhas</h1>
+        <p class="lead">Análise visual de todas as planilhas da pasta dados_teste</p>
+        <p class="text-muted">Gráficos de barras e linhas para cada planilha encontrada</p>
+    </div>
+
+    <!-- Planilhas encontradas -->
+    {% if all_charts %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-info-circle"></i> Planilhas Processadas</h5>
+                    <p class="mb-0">Foram encontradas <strong>{{ all_charts|length }}</strong> planilhas: 
+                    {% for name in all_charts.keys() %}
+                        <span class="badge badge-primary mx-1">{{ name }}</span>
+                    {% endfor %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráficos por planilha -->
+        {% for spreadsheet_name, data in all_charts.items() %}
+        <div class="spreadsheet-section mb-5" data-category="{{ spreadsheet_name|lower }}">
+            <!-- Cabeçalho da planilha -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-gradient-primary text-white">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h3 class="mb-0">
+                                        <i class="fas fa-table"></i> {{ spreadsheet_name|title }}.xlsx
+                                    </h3>
+                                </div>
+                                <div class="col-md-4 text-md-right">
+                                    <small>
+                                        <i class="fas fa-database"></i> {{ data.info.rows }} linhas × {{ data.info.columns }} colunas
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-2">Informações da Planilha:</h6>
+                                    <ul class="list-unstyled mb-0">
+                                        <li><strong>Total de registros:</strong> {{ data.info.rows }}</li>
+                                        <li><strong>Colunas:</strong> {{ data.info.columns }}</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="text-muted mb-2">Colunas disponíveis:</h6>
+                                    <div class="d-flex flex-wrap">
+                                        {% for col in data.info.column_names %}
+                                            <span class="badge badge-secondary mr-1 mb-1">{{ col }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficos da planilha -->
+            {% if data.charts %}
+                <div class="row">
+                    {% for chart in data.charts %}
+                    {% if 'Evolução de Preços por Produto' in chart.title %}
+                    <!-- Gráfico de produtos em tamanho completo -->
+                    <div class="col-12 mb-4">
+                        <div class="card border-0 shadow-sm h-auto">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-chart-line text-success"></i>
+                                    {{ chart.title }}
+                                </h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="chart-container">
+                                    <div id="chart-{{ spreadsheet_name|lower }}-{{ loop.index }}" class="plotly-chart"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <!-- Outros gráficos em tamanho normal -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">
+                                    {% if 'Barras' in chart.title %}
+                                        <i class="fas fa-chart-bar text-primary"></i>
+                                    {% else %}
+                                        <i class="fas fa-chart-line text-success"></i>
+                                    {% endif %}
+                                    {{ chart.title }}
+                                </h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="chart-container">
+                                    <div id="chart-{{ spreadsheet_name|lower }}-{{ loop.index }}" class="plotly-chart"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="row">
+                    <div class="col-12">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Não foi possível gerar gráficos para a planilha <strong>{{ spreadsheet_name }}</strong>.
+                            Verifique se os dados estão no formato adequado.
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Separador entre planilhas -->
+        {% if not loop.last %}
+        <hr class="my-5" style="border-top: 2px solid #e9ecef;">
+        {% endif %}
+        {% endfor %}
+
+    {% else %}
+        <!-- Nenhuma planilha encontrada -->
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-danger text-center">
+                    <h4><i class="fas fa-exclamation-circle"></i> Nenhuma planilha encontrada</h4>
+                    <p class="mb-0">Não foram encontradas planilhas (.xlsx) na pasta <code>dados_teste</code>.</p>
+                    <small class="text-muted">Verifique se os arquivos estão no local correto e têm a extensão .xlsx</small>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Scripts para renderizar os gráficos -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Função para filtrar planilhas por categoria
+        function filterByCategory(category) {
+            const sections = document.querySelectorAll('.spreadsheet-section');
+            
+            sections.forEach(section => {
+                const sectionCategory = section.getAttribute('data-category');
+                
+                if (category === 'all' || sectionCategory === category) {
+                    section.style.display = 'block';
+                } else {
+                    section.style.display = 'none';
+                }
+            });
+        }
+
+        // Event listeners para os filtros
+        document.querySelectorAll('input[name="category-filter"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.checked) {
+                    filterByCategory(this.value);
+                    
+                    // Atualizar aparência dos botões
+                    document.querySelectorAll('label[id^="filter-"]').forEach(label => {
+                        label.classList.remove('active');
+                    });
+                    this.parentElement.classList.add('active');
+                }
+            });
+        });
+
+        {% for spreadsheet_name, data in all_charts.items() %}
+            {% for chart in data.charts %}
+                // Gráfico {{ chart.title }} da planilha {{ spreadsheet_name }}
+                var chartData{{ spreadsheet_name|replace(' ', '')|replace('-', '') }}{{ loop.index }} = {{ chart.chart|safe }};
+                var chartDiv{{ spreadsheet_name|replace(' ', '')|replace('-', '') }}{{ loop.index }} = document.getElementById('chart-{{ spreadsheet_name|lower }}-{{ loop.index }}');
+                
+                if (chartDiv{{ spreadsheet_name|replace(' ', '')|replace('-', '') }}{{ loop.index }}) {
+                    Plotly.newPlot(
+                        chartDiv{{ spreadsheet_name|replace(' ', '')|replace('-', '') }}{{ loop.index }}, 
+                        chartData{{ spreadsheet_name|replace(' ', '')|replace('-', '') }}{{ loop.index }}.data, 
+                        chartData{{ spreadsheet_name|replace(' ', '')|replace('-', '') }}{{ loop.index }}.layout,
+                        {
+                            responsive: true,
+                            displayModeBar: true,
+                            modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
+                            displaylogo: false
+                        }
+                    );
+                }
+            {% endfor %}
+        {% endfor %}
+        
+        // Redimensionar gráficos quando a janela muda de tamanho
+        window.addEventListener('resize', function() {
+            {% for spreadsheet_name, data in all_charts.items() %}
+                {% for chart in data.charts %}
+                    var chartDiv{{ spreadsheet_name|replace(' ', '')|replace('-', '') }}{{ loop.index }} = document.getElementById('chart-{{ spreadsheet_name|lower }}-{{ loop.index }}');
+                    if (chartDiv{{ spreadsheet_name|replace(' ', '')|replace('-', '') }}{{ loop.index }}) {
+                        Plotly.Plots.resize(chartDiv{{ spreadsheet_name|replace(' ', '')|replace('-', '') }}{{ loop.index }});
+                    }
+                {% endfor %}
+            {% endfor %}
+        });
+    });
+</script>
+{% endblock %}

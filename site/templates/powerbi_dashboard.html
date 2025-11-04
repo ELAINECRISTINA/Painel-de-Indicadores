@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block container_class %}container-fluid p-0{% endblock %}
+
+{% block content %}
+<style>
+
+/* --- Estilização do Container (para alinhar os cards) --- */
+.card-container {
+    display: flex;
+    flex-wrap: wrap; /* Permite que os cards quebrem a linha em telas menores */
+    justify-content: center; /* Centraliza os cards na página */
+    padding: 20px;
+    gap: 30px; /* Espaçamento moderno entre os cards (substitui a margem) */
+}
+
+/* --- Estilização do Card --- */
+.card-link {
+    width: 300px;
+    min-height: 200px;
+    background-color: var(--card-bg);
+    border: 1px solid #eee; /* Borda mais suave que 'black' */
+    border-radius: 12px; /* Cantos arredondados */
+    box-shadow: 0 4px 12px var(--shadow-color); /* Sombra mais suave */
+    
+    /* Organização interna (título em cima, botão embaixo) */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 24px;
+    text-align: center;
+    
+    /* A MÁGICA DA ANIMAÇÃO */
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* --- EFEITO HOVER NO CARD --- */
+.card-link:hover {
+    transform: translateY(-8px); /* Efeito de "flutuar" */
+    box-shadow: 0 10px 20px var(--shadow-color-hover); /* Sombra mais destacada */
+}
+
+/* --- Estilização do Título do Card --- */
+.card-title {
+    font-size: 1.5rem; /* Tamanho maior */
+    font-weight: 600; /* Mais "gordinho" */
+    color: var(--text-color);
+    margin: 0; /* Remove margem padrão do <p> */
+}
+
+/* --- Estilização do Botão (agora um link <a>) --- */
+.btn-link {
+    display: inline-block; /* Essencial para aplicar padding em tags <a> */
+    text-decoration: none;
+    color: white;
+    background-color: var(--darkblue);
+    padding: 10px 24px; /* Mais flexível que height/width fixos */
+    border-radius: 30px; /* Formato de pílula */
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    
+    /* Animação para o botão */
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+/* --- EFEITO HOVER NO BOTÃO --- */
+.btn-link:hover {
+    color: white;
+    background-color: var(--orange);
+    transform: scale(1.05); /* Efeito de "pop" */
+
+}
+</style>
+<body>
+    {% include "./components/header.html" %}
+    {% include "./components/navigation.html" %}
+
+    <div class="d-flex card-container"> {% for chart_name in funcs %}
+        <div class="card-link">
+            {% if chart_name.__name__ == 'fert_tab' %}
+                <p class="card-title">Fertilizante</p>
+            {% else %}
+                <p class="card-title">{{ chart_name.__name__.replace('_tab','').capitalize() }}</p>
+            {% endif %}
+            <a class="btn-link" href="{{ url_for(chart_name.__name__) }}">Acessar</a>
+        </div> 
+    {% endfor %}
+    </div>
+</body>
+<footer></footer>
+{% endblock %}

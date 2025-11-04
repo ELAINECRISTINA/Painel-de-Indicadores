@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estatísticas de Acesso</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}" type="image/x-icon">
+</head>
+<body>
+    <div class="container">
+        <h1>Estatísticas de Acesso aos Endpoints</h1>
+        <a href="/" class="back-button">Voltar para o Dashboard</a>
+        <div class="stats-table">
+            {% if request_counts %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Endpoint</th>
+                        <th>Requisições</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for endpoint, count in request_counts.items() %}
+                    <tr>
+                        <td>{{ endpoint }}</td>
+                        <td>{{ count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>Nenhuma requisição registrada ainda.</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

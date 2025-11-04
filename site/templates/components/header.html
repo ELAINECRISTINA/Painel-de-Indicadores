@@ -1,0 +1,93 @@
+<style> 
+/* --- ESTILO GERAL DO CABEÇALHO --- */
+    .powerbi-header {
+        background-color: #15458f; /* Cor de fundo sólida azul */
+        min-height: 120px;
+        padding: 20px 0;
+        position: relative;     /* Essencial para posicionar o pseudo-elemento */
+        overflow: hidden;       /* Esconde a parte da imagem que não queremos mostrar */
+        display: flex;          /* Usa flexbox para centralizar o container verticalmente */
+        align-items: center;
+    }
+
+    /* --- O EFEITO DE CORTE CURVADO --- */
+    .powerbi-header::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 40%; /* A imagem ocupará 40% da largura do header. Ajuste conforme desejar. */
+        height: 100%;
+        background-image: url('{{ url_for('static', filename='img/' + img_name) }}'); /* Sua imagem de fundo */
+        background-size: cover;
+        background-position: center;
+        
+        /* Esta é a linha que cria a curva! */
+        border-top-left-radius: 120px; /* Ajuste o valor para uma curva mais suave ou mais acentuada */
+    }
+
+
+    /* --- ALINHAMENTO DO CONTEÚDO --- */
+
+    /* O container que segura todo o conteúdo (logo, texto, botão) */
+    .powerbi-container {
+        display: flex;
+        align-items: center; /* Alinha todos os itens verticalmente */
+        width: 100%;
+        padding: 0 30px; /* Adiciona um espaçamento nas laterais */
+        position: relative;
+        z-index: 2; /* Garante que o conteúdo fique NA FRENTE da imagem curvada */
+    }
+
+    /* Div do logo */
+    .div-icon-jacto {
+        margin-right: 20px; /* Espaço entre o logo e o texto */
+        flex-shrink: 0; /* Impede que o logo encolha */
+    }
+
+    /* Estilo do logo */
+    .icon-jacto {
+        height: 50px;
+        width: auto; /* CORRIGIDO: Usa 'auto' para manter a proporção da imagem */
+        filter: brightness(0) invert(1); /* Deixa o logo branco */
+        display: block; /* Remove espaços extras abaixo da imagem */
+    }
+
+    /* A div .row que contém o texto e o botão */
+    .powerbi-container .row {
+        flex-grow: 1; /* Faz esta div ocupar todo o espaço restante */
+        display: flex;
+        align-items: center;
+    }
+
+    /* Coluna do botão, para empurrá-lo para a direita */
+    .powerbi-container .col-md-4 {
+        margin-left: auto; /* Mágica do Flexbox: empurra o botão para o final da linha */
+        text-align: right;
+    }
+
+    /* Garante que o texto permaneça branco e legível */
+    .powerbi-header h1,
+    .powerbi-header p,
+    .powerbi-header .btn {
+        color: white;
+    }
+
+
+
+</style>
+
+<div class="powerbi-header">
+    <div class="powerbi-container">
+        <div class="div-icon-jacto">
+            <img class="icon-jacto" src="{{ url_for('static', filename='img/logo_temp.svg') }}" alt="logo Jacto">
+        </div>
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="mb-0 fs-3 text-white">{{ title | default('Dashboard Indicadores 📊')}}</h1>
+                <p class="mb-0 fs-6 text-white">Análise Completa de Dados Agrícolas</p>
+            </div>
+           
+        </div>
+    </div>
+</div>

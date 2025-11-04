@@ -1,0 +1,69 @@
+<style>
+    .powerbi-nav {
+            background-color: var(--gray);
+            padding: 15px 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow-x: hidden;
+        }
+        
+    .nav-tabs-powerbi {
+        border: none;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .nav-tabs-powerbi .nav-link {
+        background-color: transparent;
+        border: 2px solid #34495e;
+        color: #ecf0f1;
+        margin: 0 5px;
+        border-radius: 25px;
+        padding: 10px 25px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .nav-tabs-powerbi .nav-link:hover {
+        background-color: var(--darkblue);
+        border-color: var(--darkblue);
+        color: white;
+        transform: translateY(-2px);
+    }
+    
+    .nav-tabs-powerbi .nav-link.active {
+        background-color: var(--orange);
+        border-color: var(--orange);
+        color: white;
+    }
+</style>
+
+<div class="powerbi-nav">
+    <div class="container-fluid">
+        <ul class="nav nav-tabs nav-tabs-powerbi">
+            <li class="nav-item">
+                <a class="nav-link {% if current_sheet == 'None' %}active{% endif %}" href="/powerbi">📈 Visão Geral</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_sheet == 'Principal' %}active{% endif %}" href="/powerbi/principal">🧭 Aba Principal</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_sheet == 'Pulverização' %}active{% endif %}" href="/powerbi/pulverização">🧑‍🌾 Pulverização</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_sheet == 'Poda' %}active{% endif %}" href="/powerbi/poda">✂️ Poda</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_sheet == 'Fertilizante' %}active{% endif %}" href="/powerbi/fertilizantes">🥬 Fertilizante</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_sheet == 'Safra' %}active{% endif %}" href="/powerbi/safras">🫘 Safra</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if current_sheet == 'Cultivo' %}active{% endif %}" href="/powerbi/cultivos">🥑 Cultivo</a>
+            </li>
+        </ul>
+    </div>
+</div>
