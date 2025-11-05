@@ -1,19 +1,9 @@
-{% extends "base.html" %}
 
-{% block container_class %}container-fluid p-0{% endblock %}
-
-{% block content %}
-
-{% include "./components/header.html" %}
-
-{% include "./components/navigation.html" %}
-
+<script src="{{ url_for('static', filename='js/plotly.min.js') }}"></script>
 
 <div class="content-wrapper">
     <div class="dashboard-content">
         <div class="container-fluid">
-
- 
 
     <!-- Gráficos full-width -->
     <div class="row ">
@@ -38,20 +28,27 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
     {% for chart in charts %}
-    var c{{ loop.index }} = {{ chart.chart|safe }};
-    Plotly.newPlot('principal-chart-{{ loop.index }}', c{{ loop.index }}.data, c{{ loop.index }}.layout, {
-        responsive:true, displaylogo:false
-    });
+    try {
+        var chartString{{ loop.index }} = {{ chart.chart|tojson|safe }};
+        var c{{ loop.index }} = JSON.parse(chartString{{ loop.index }});
+        Plotly.newPlot('principal-chart-{{ loop.index }}', c{{ loop.index }}.data, c{{ loop.index }}.layout, {
+            responsive:true, displaylogo:false
+        });
+        console.log("Gráfico {{ loop.index }} renderizado com sucesso");
+    } catch (e) {
+        console.error("Falha ao renderizar gráfico {{ loop.index }}:", e);
+    }
     {% endfor %}
+    
+    // Event listener para resize (opcional)
     window.addEventListener('resize', function(){
         {% for chart in charts %}
-        Plotly.Plots.resize(document.getElementById('principal-chart-{{ loop.index }}'));
-        {% endfor %}
-    });
-});
+        try {
+            Plotly.Plots.resize(document.getElementById('principal-chart-{{ loop.index }}'));
+        } catch (e) {
+            console.error("Erro no resize do gráfico {{ loop.index }}:", e);
+        }
+        {% endfor %} 
+        });
 </script>
-{% endblock %}
-
-

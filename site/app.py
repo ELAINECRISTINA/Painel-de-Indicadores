@@ -806,37 +806,22 @@ def stats():
 def powerbi_dashboard():
     """Dashboard estilo PowerBI com paginação"""
     spreadsheets = load_spreadsheets()
-    all_charts = {}
-    
-    for name, df in spreadsheets.items():
-        if name.lower() == 'safras':
-            charts = create_safras_charts(df)
-        elif name.lower() == 'vbp':
-            charts = create_vbp_charts(df)
-        elif name.lower() == 'dolar':
-            charts = create_dolar_charts(df)
-        elif name.lower() == 'agrotóxicos':
-            charts = create_agrotoxicos_charts(df)
-        elif name.lower() == 'credito_rural':
-            charts = create_credito_rural_charts(df)
-        elif name.lower() == 'indicadores_poda':
-            charts = create_indicadores_podas_charts(df)
-        else:
-            charts = create_generic_charts(df, name)
-        
-        all_charts[name] = {
-            'charts': charts,
-            'info': {
-                'rows': len(df),
-                'columns': len(df.columns),
-                'column_names': df.columns.tolist()
-            }
-        }
     funcs = [principal_tab,  pulverizadores_tab, podas_tab, fert_tab, safras_tab, cultivos_tab]
-  
-    return render_template('powerbi_dashboard.html', all_charts=all_charts, current_sheet='None', img_name='',funcs=funcs)
+    return render_template('home.html', current_sheet='None', img_name='',funcs=funcs)
 
-@app.route('/powerbi/principal')
+@app.route('/powerbi/testes/skeleton')
+def teste_esqueleto():
+    return render_template('./components/skeleton.html', current_sheet='', img_name='', title='')
+
+@app.route('/powerbi/paginas/<sheet_name>')
+def skeleton_waiter(sheet_name):
+    sheet_name = sheet_name.lower()
+    print(sheet_name)
+    title = sheet_name.capitalize()
+    image = f"{sheet_name.lower()}.jpg"
+    return render_template('./components/skeleton.html', current_sheet=sheet_name, img_name=image, title=title)
+
+@app.route('/powerbi/principal-data')
 def principal_tab():
     """Aba principal com KPIs e gráficos resumidos (VBP, Crédito Rural, PIB Agro e Import/Export)."""
     # Filtros via query string: view=anual|mensal (default: anual)
@@ -850,73 +835,69 @@ def principal_tab():
     spreadsheets = load_spreadsheets()
     sheet_names = list(spreadsheets.keys())
     
-    
-    return render_template('principal.html',
-                            img_name='principal.jpg',
+    return render_template('charts.html',
+                           img_name='principal.jpg',
                            title='Aba Principal',
                            charts=charts, 
                            current_sheet='Principal')
 
-@app.route('/powerbi/pulverização')
+@app.route('/powerbi/pulverizadores-data')
 def pulverizadores_tab():
     spreadsheets = load_spreadsheets()
     sheet_names = list(spreadsheets.keys())
     charts = create_pulv_charts()
     print(charts)
-    return render_template('pulverizadores.html',
+    return render_template('charts.html',
                             img_name='pulv.jpg',
                             title='Pulverizador',
                             charts=charts,
                             sheet_names=sheet_names,
                             current_sheet='Pulverização')
 
-@app.route('/powerbi/poda')
+@app.route('/powerbi/podas-data')
 def podas_tab():
     spreadsheets = load_spreadsheets()
     sheet_names = list(spreadsheets.keys())
     charts = create_podas_charts()
-    return render_template('podas.html',
+    return render_template('charts.html',
                             title='Poda',
                             img_name='podas.jpg',
                             charts=charts,
                             sheet_names=sheet_names,
                             current_sheet='Poda')
 
-@app.route('/powerbi/fertilizantes')
+@app.route('/powerbi/fertilizantes-data')
 def fert_tab():
     spreadsheets = load_spreadsheets()
     sheet_names = list(spreadsheets.keys())
     charts = create_fert_charts()
-    return render_template('fertilizantes.html',
+    return render_template('charts.html',
                             img_name='fert.jpg',
                             title='Fertilizante',
                             charts=charts,
                             sheet_names=sheet_names,
                             current_sheet='Fertilizante')
                         
-@app.route('/powerbi/safras')
+@app.route('/powerbi/safras-data')
 def safras_tab():
     spreadsheets = load_spreadsheets()
     sheet_names = list(spreadsheets.keys())
     charts = create_safra_charts()
-    return render_template('safras.html',
+    return render_template('charts.html',
     img_name='safra.jpg',
                             title='Safra',
                             charts=charts,
                             sheet_names=sheet_names,
                             current_sheet='Safra')
 
-@app.route('/powerbi/cultivos')
+@app.route('/powerbi/cultivos-data')
 def cultivos_tab():
     spreadsheets = load_spreadsheets()
     sheet_names = list(spreadsheets.keys())
     charts = create_cultivos_charts()
-    return render_template('cultivos.html',
-    img_name='cultivos.jpg',
+    return render_template('charts.html',
                             charts=charts,
-                            title='Cultivo',
                             sheet_names=sheet_names,
-                            current_sheet='Cultivo'
                             )
 
 if __name__ == '__main__':

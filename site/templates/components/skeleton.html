@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block container_class %}container-fluid p-0{% endblock %}
+
+{% block content %}
+
+{% include "./components/header.html" %}
+{% include "./components/navigation.html" %}
+
+<style>
+    /* A animação 'shimmer' (onda) */
+    @keyframes shimmer {
+        0% {
+            /* Posição inicial do gradiente (fora da tela, à direita) */
+            background-position: 100% 0;
+        }
+        100% {
+            /* Posição final (fora da tela, à esquerda) */
+            background-position: -100% 0;
+        }
+    }
+
+    .skeleton {
+        border-radius: 4px;
+        background-color: #e0e0e0; /* Cor base do skeleton */
+        
+        /* O gradiente que cria a "onda" de brilho */
+        background-image: linear-gradient(
+            90deg, 
+            #e0e0e0 0%,  /* Cor base */
+            #f0f0f0 50%,  /* Cor do brilho */
+            #e0e0e0 100% /* Cor base */
+        );
+        
+        /* Faz o gradiente ser 2x mais largo que o elemento */
+        background-size: 200% 100%; 
+        
+        /* Aplica a animação */
+        animation: shimmer 1.5s linear infinite;
+    }
+    
+    /* Skeleton para o título dentro do card */
+    .skeleton-title {
+        height: 24px; /* Ajuste conforme o tamanho do seu título */
+        width: 40%;
+    }
+
+    /* Skeleton para o container do gráfico */
+    .skeleton-chart-container {
+        /* Imita o 'style="width:80%;"' do seu conteúdo real */
+        width: 80%; 
+    }
+
+    .skeleton-chart {
+        /* Imita o 'min-height:520px;' do seu gráfico real */
+        min-height: 520px; 
+        width: 100%;
+    }
+    
+    /* Estilos dos seus gráficos reais (ex: Plotly) */
+    .plotly-chart { 
+        border: 1px solid #ccc;
+    }
+</style>
+
+
+<div 
+  id="content-wrapper"
+  hx-get="/powerbi/{{current_sheet}}-data" 
+  hx-trigger="load" 
+  hx-swap="outerHTML">
+
+    <div class="content-wrapper">
+        <div class="dashboard-content">
+            <div class="container-fluid">
+                <div class="row">
+
+                    <div class="col-12 mb-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-header bg-light">
+                                <div class="skeleton skeleton-title"></div>
+                            </div>
+                            <div class="card-body p-0 d-flex justify-content-center">
+                                <div class="skeleton-chart-container">
+                                    <div class="skeleton skeleton-chart">
+                                        
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 mb-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-header bg-light">
+                                <div class="skeleton skeleton-title" style="width: 30%;"></div>
+                            </div>
+                            <div class="card-body p-0 d-flex justify-content-center">
+                                <div class="skeleton-chart-container">
+                                    <div class="skeleton skeleton-chart"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div> </div> </div> </div> </div> {% endblock %}

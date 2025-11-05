@@ -864,6 +864,7 @@ def create_cultivos_charts():
             'title': f'{sub_group}',
             'chart': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
         })
+        
     
     # 2. Gráfico de Linhas de Preço Médio de Cultivos
     try:

@@ -47,22 +47,22 @@
                 <a class="nav-link {% if current_sheet == 'None' %}active{% endif %}" href="/powerbi">📈 Visão Geral</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if current_sheet == 'Principal' %}active{% endif %}" href="/powerbi/principal">🧭 Aba Principal</a>
+                <a class="nav-link {% if current_sheet == 'principal' %}active{% endif %}" href="{{url_for('skeleton_waiter', sheet_name='principal')}}">🧭 Aba Principal</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if current_sheet == 'Pulverização' %}active{% endif %}" href="/powerbi/pulverização">🧑‍🌾 Pulverização</a>
+                <a class="nav-link {% if current_sheet == 'pulverizadores' %}active{% endif %}" href="{{url_for('skeleton_waiter', sheet_name='pulverizadores')}}">🧑‍🌾 Pulverização</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if current_sheet == 'Poda' %}active{% endif %}" href="/powerbi/poda">✂️ Poda</a>
+                <a class="nav-link {% if current_sheet == 'podas' %}active{% endif %}" href="{{url_for('skeleton_waiter', sheet_name='podas')}}">✂️ Poda</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if current_sheet == 'Fertilizante' %}active{% endif %}" href="/powerbi/fertilizantes">🥬 Fertilizante</a>
+                <a class="nav-link {% if current_sheet == 'fertilizantes' %}active{% endif %}" href="{{url_for('skeleton_waiter', sheet_name='fertilizantes')}}">🥬 Fertilizante</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if current_sheet == 'Safra' %}active{% endif %}" href="/powerbi/safras">🫘 Safra</a>
+                <a class="nav-link {% if current_sheet == 'safras' %}active{% endif %}" href="{{url_for('skeleton_waiter', sheet_name='safras')}}">🫘 Safra</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if current_sheet == 'Cultivo' %}active{% endif %}" href="/powerbi/cultivos">🥑 Cultivo</a>
+                <a class="nav-link {% if current_sheet == 'cultivos' %}active{% endif %}" href="{{url_for('skeleton_waiter', sheet_name='cultivos')}}">🥑 Cultivo</a>
             </li>
         </ul>
     </div>

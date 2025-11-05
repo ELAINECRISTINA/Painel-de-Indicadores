@@ -78,12 +78,13 @@
 
     <div class="d-flex card-container"> {% for chart_name in funcs %}
         <div class="card-link">
+            {% set sheet_title = chart_name.__name__.replace('_tab','')%}
             {% if chart_name.__name__ == 'fert_tab' %}
                 <p class="card-title">Fertilizante</p>
             {% else %}
                 <p class="card-title">{{ chart_name.__name__.replace('_tab','').capitalize() }}</p>
             {% endif %}
-            <a class="btn-link" href="{{ url_for(chart_name.__name__) }}">Acessar</a>
+            <a class="btn-link" href="{{ url_for('skeleton_waiter',sheet_name=sheet_title) }}">Acessar</a>
         </div> 
     {% endfor %}
     </div>
