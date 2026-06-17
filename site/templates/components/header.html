@@ -80,7 +80,7 @@
 <div class="powerbi-header">
     <div class="powerbi-container">
         <div class="div-icon-jacto">
-            <img class="icon-jacto" src="{{ url_for('static', filename='img/logo_temp.svg') }}" alt="logo Jacto">
+            <img class="icon-jacto" id="secret" src="{{ url_for('static', filename='img/logo_temp.svg') }}" alt="logo Jacto">
         </div>
         <div class="row align-items-center">
             <div class="col-md-8">
@@ -91,3 +91,44 @@
         </div>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const secretButton = document.getElementById('secret');
+        let clickCount = 0;
+        let clickTimer = null;
+        
+        if (secretButton) {
+            secretButton.addEventListener('click', function() {
+                clickCount++;
+                
+                // Limpa o timer anterior
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                }
+                
+                // Se clicou 5 vezes
+                if (clickCount >= 5) {
+                    // Redireciona para a página admin
+                    window.location.href = '/powerbi/admin';
+                    return;
+                }
+                
+                // Reseta o contador após 3 segundos sem cliques
+                clickTimer = setTimeout(function() {
+                    clickCount = 0;
+                }, 3000);
+                
+                // Feedback visual (opcional) - pisca o botão
+                secretButton.style.opacity = '0.5';
+                setTimeout(function() {
+                    secretButton.style.opacity = '1';
+                }, 100);
+            });
+            
+            // Adiciona um cursor pointer para indicar que é clicável
+            secretButton.style.cursor = 'pointer';
+            
+         
+        }
+    });
+    </script>

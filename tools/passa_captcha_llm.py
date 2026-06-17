@@ -10,7 +10,7 @@ import pandas as pd
 from thefuzz import process
 import json
 
-from .llm import init_llm
+from tools.llm import init_llm
 
 PROMPT_DE_INSTRUCAO = (
 """Ignore todo o ruído visual, como linhas, pontos e distorções de fundo na imagem em anexo. 
@@ -169,7 +169,8 @@ def retorna_pib_atualizado(markdown) -> str:
     
     Aqui estão seus dados: {markdown}
 
-    Retorne APENAS o PIB AGRO que você encontrou. 
+    Retorne APENAS o PIB AGRO que você encontrou. Traga ele, de maneira numérica, exemplo: $2,580,000,000,000
+
     """
     llm = init_llm()
     try:
