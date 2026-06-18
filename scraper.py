@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import locale
 import pyautogui
 import pandas as pd
+import openpyxl
 
 import requests
 
@@ -15,7 +16,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, UnexpectedAlertPresentException, NoAlertPresentException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, UnexpectedAlertPresentException, NoAlertPresentException, WebDriverException, InvalidSessionIdException
 from selenium.webdriver.common.keys import Keys
 
 from webdriver_manager.chrome import ChromeDriverManager
@@ -50,12 +51,43 @@ chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
 chrome_options.add_experimental_option("useAutomationExtension", False)
 chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36")
 
+# ==========================================================
+# =================== PROTEÇÃO DE CAMINHOS ==================
+# ==========================================================
+# 🛑 FIX CRÍTICO: path_geral é a raiz do projeto (onde ficam os .py).
+# Antes, o Chrome baixava arquivos DIRETO nessa pasta e um bloco de
+# limpeza no início do script apagava "tudo que estivesse lá" — o que
+# incluía o próprio código-fonte (scraper.py, app.py, etc).
+#
+# Agora: path_geral continua sendo a raiz do projeto (só leitura/referência),
+# e downloads_path é uma subpasta EXCLUSIVA para arquivos baixados pelo
+# Chrome. Nenhuma rotina de limpeza/remoção deve operar em path_geral.
 path_geral = r"C:\Users\ESILVA65\OneDrive - JACTO\Documentos\automate"
+downloads_path = os.path.join(path_geral, '_downloads_temp')
+os.makedirs(downloads_path, exist_ok=True)
+
 dados_teste_path = os.path.join(path_geral, 'dados_teste')
 os.makedirs(dados_teste_path, exist_ok=True)
 
+# Extensões que NUNCA podem ser removidas por rotina automática,
+# mesmo que algum caminho seja configurado incorretamente no futuro.
+EXTENSOES_PROIBIDAS = {'.py', '.json', '.env', '.cfg', '.ini', '.toml', '.yaml', '.yml'}
+
+
+def remove_seguro(caminho):
+    """
+    Wrapper de os.remove que recusa apagar arquivos de código/configuração.
+    Última linha de defesa: mesmo que downloads_path/dados_teste_path um dia
+    voltem a apontar para a pasta errada, isso evita apagar o projeto.
+    """
+    _, ext = os.path.splitext(caminho)
+    if ext.lower() in EXTENSOES_PROIBIDAS:
+        raise RuntimeError(f"🛑 Tentativa de remover arquivo protegido, abortando: {caminho}")
+    os.remove(caminho)
+
+
 prefs = {
-    "download.default_directory": path_geral,
+    "download.default_directory": downloads_path,  # 🛑 FIX: era path_geral
     "download.prompt_for_download": False,
     "download.directory_upgrade": True,
     "plugins.always_open_pdf_externally": True,
@@ -93,40 +125,52 @@ def download():
 
 def verify_new_download(new_name):
     """
-    Detecta o arquivo recém-baixado em path_geral comparando a lista de
+    Detecta o arquivo recém-baixado em downloads_path comparando a lista de
     arquivos antes/depois. Quando há mais de um arquivo novo (ex: cópias
     numeradas '(1)', '(2)' deixadas por execuções anteriores que não foram
     limpas), escolhe o de modificação mais recente em vez do primeiro da
     lista, já que a ordem de os.listdir não é garantida.
+
+    🛑 FIX: antes a verificação usava `len(arquivos_new) > len(arquivos)`
+    como guarda de entrada. Isso falha sempre que um arquivo sai da pasta
+    (ex: move_to_dados_teste movendo o download anterior) na mesma janela
+    em que outro entra: a contagem líquida fica igual (ex: 2 e 2) mesmo
+    com um arquivo genuinamente novo presente, e o erro
+    "Nenhum novo arquivo foi baixado" disparava com o arquivo já ali,
+    intacto, como aconteceu com a Cana. A checagem correta é olhar
+    diretamente a diferença de conjuntos (`novos`), não o tamanho das
+    listas.
     """
     global arquivos
-    arquivos_new = os.listdir(path_geral)
+    arquivos_new = os.listdir(downloads_path)  # 🛑 FIX: era path_geral
     print(len(arquivos_new), len(arquivos))
-    if not (len(arquivos_new) > len(arquivos)):
+
+    novos = [i for i in arquivos_new if i not in arquivos]
+
+    if not novos:
         raise FileNotFoundError("Nenhum novo arquivo foi baixado")
     else:
         print("=" * 20)
-        novos = [i for i in arquivos_new if i not in arquivos]
         print(f"Arquivos novos detectados: {novos}")
 
         # Escolhe o mais recente entre os novos, em caso de mais de um
         arquivo_novo = max(
             novos,
-            key=lambda f: os.path.getmtime(os.path.join(path_geral, f))
+            key=lambda f: os.path.getmtime(os.path.join(downloads_path, f))
         )
         print(f"Arquivo novo escolhido: {arquivo_novo}")
         extensao = arquivo_novo.split(".")[-1]
         print(extensao)
         print("=" * 20)
 
-        destino = os.path.join(path_geral, f"{new_name}.{extensao}")
+        destino = os.path.join(downloads_path, f"{new_name}.{extensao}")
 
         if os.path.exists(destino):
-            os.remove(destino)
+            remove_seguro(destino)
             print(f"🗑️ Arquivo antigo removido: {new_name}.{extensao}")
 
-        os.rename(os.path.join(path_geral, arquivo_novo), destino)
-        arquivos = os.listdir(path_geral)
+        os.rename(os.path.join(downloads_path, arquivo_novo), destino)
+        arquivos = os.listdir(downloads_path)
         print(f"{arquivo_novo} -> {new_name}.{extensao} ARRUMADO COM SUCESSO")
         return f"{new_name}.{extensao}"
 
@@ -158,6 +202,64 @@ def aguarda_arquivo_especifico(pasta, nome_arquivo, timeout=60, intervalo=1):
     return False
 
 
+def aguarda_download_completo(pasta, arquivos_antes, timeout=60, intervalo=1,
+                                estabilidade=1.0):
+    """
+    Espera ativamente um novo download terminar, sem depender de nome fixo
+    nem de time.sleep() arbitrário. Substitui os antigos `time.sleep(5)` ao
+    final de get_safras/get_VBP/get_credito_rural/get_pib_values, que
+    falhavam quando o site demorava mais que o tempo fixo (caso real: o
+    arquivo de cana, mais lento, ficava incompleto e a próxima verificação
+    via `verify_new_download` não detectava nada de novo).
+
+    Critérios para considerar o download concluído:
+      1. Existe pelo menos um arquivo novo em `pasta` (que não estava em
+         `arquivos_antes`).
+      2. Nenhum arquivo novo termina em `.crdownload` (indicador nativo do
+         Chrome de download em andamento).
+      3. O tamanho do arquivo novo mais recente está estável por um
+         intervalo curto (`estabilidade` segundos) — proteção extra para
+         servidores que finalizam o nome antes de realmente terminar de
+         escrever todos os bytes.
+
+    Retorna True se detectou e confirmou o download; False se atingiu o
+    timeout sem sucesso (quem chamar decide se trata como erro fatal).
+    """
+    tempo_decorrido = 0
+    while tempo_decorrido < timeout:
+        arquivos_atuais = os.listdir(pasta)
+        novos = [f for f in arquivos_atuais if f not in arquivos_antes]
+        novos_completos = [f for f in novos if not f.endswith('.crdownload')]
+
+        if novos_completos:
+            candidato = max(
+                novos_completos,
+                key=lambda f: os.path.getmtime(os.path.join(pasta, f))
+            )
+            caminho_candidato = os.path.join(pasta, candidato)
+            tamanho_antes = os.path.getsize(caminho_candidato)
+            time.sleep(estabilidade)
+
+            # Reconfirma que ainda existe e não apareceu um .crdownload novo
+            # para o mesmo arquivo nesse intervalo (alguns sites recriam o
+            # arquivo final só depois de finalizar o .crdownload).
+            ainda_em_download = any(
+                f.endswith('.crdownload') for f in os.listdir(pasta)
+                if f not in arquivos_antes
+            )
+            if not ainda_em_download and os.path.exists(caminho_candidato):
+                tamanho_depois = os.path.getsize(caminho_candidato)
+                if tamanho_depois == tamanho_antes and tamanho_depois > 0:
+                    print(f"✅ Download concluído e estável: {candidato} ({tamanho_depois} bytes) após {tempo_decorrido}s")
+                    return True
+
+        time.sleep(intervalo)
+        tempo_decorrido += intervalo
+
+    print(f"⏱️ Timeout de {timeout}s atingido aguardando download completar em {pasta}")
+    return False
+
+
 def limpa_arquivo_antigo(pasta, nome_arquivo):
     """
     Remove o arquivo (e variantes numeradas tipo 'nome (1).xlsx') antes de
@@ -167,23 +269,24 @@ def limpa_arquivo_antigo(pasta, nome_arquivo):
     """
     destino = os.path.join(pasta, nome_arquivo)
     if os.path.exists(destino):
-        os.remove(destino)
+        remove_seguro(destino)
         print(f"🗑️ Removido antes do novo download: {nome_arquivo}")
 
     nome_base, ext = os.path.splitext(nome_arquivo)
     for f in os.listdir(pasta):
         if f.startswith(nome_base) and f.endswith(ext) and f != nome_arquivo:
             try:
-                os.remove(os.path.join(pasta, f))
+                remove_seguro(os.path.join(pasta, f))
                 print(f"🗑️ Variante antiga removida: {f}")
             except Exception as e:
                 print(f"⚠️ Não foi possível remover {f}: {e}")
 
 
 def move_to_dados_teste(nome_origem, nome_destino=None):
-    """Move (e opcionalmente renomeia) arquivo de path_geral para dados_teste/"""
+    """Move (e opcionalmente renomeia) arquivo de downloads_path para dados_teste/"""
+    global arquivos
     nome_destino = nome_destino or nome_origem
-    origem = os.path.join(path_geral, nome_origem)
+    origem = os.path.join(downloads_path, nome_origem)  # 🛑 FIX: era path_geral
     destino = os.path.join(dados_teste_path, nome_destino)
 
     if not os.path.exists(origem):
@@ -191,10 +294,17 @@ def move_to_dados_teste(nome_origem, nome_destino=None):
         return
 
     if os.path.exists(destino):
-        os.remove(destino)
+        remove_seguro(destino)
         print(f"🗑️ Arquivo antigo removido em dados_teste: {nome_destino}")
 
     shutil.move(origem, destino)
+
+    # 🛑 FIX: resincroniza o snapshot global usado por verify_new_download.
+    # Sem isso, o arquivo recém-movido (que saiu de downloads_path) ficava
+    # "fantasma" na lista `arquivos`, e a checagem antiga baseada em
+    # comparação de tamanho de listas mascarava downloads novos legítimos.
+    arquivos = os.listdir(downloads_path)
+
     print(f"✅ Movido: {nome_origem} → dados_teste/{nome_destino}")
 
 
@@ -258,12 +368,23 @@ def get_safras(driver, link, tipo):
         tabela_link = tabela_dados.get_attribute("href")
         print(f"Link tabela: {tabela_link}")
 
+        # 🛑 FIX: snapshot ANTES do clique que dispara o download, para a
+        # espera ativa saber o que é "novo". O antigo time.sleep(5) fixo
+        # falhava em arquivos maiores/mais lentos (ex: cana-de-açúcar),
+        # deixando o download incompleto e quebrando verify_new_download
+        # na chamada seguinte.
+        arquivos_antes_download = os.listdir(downloads_path)
+
         try:
             driver.get(tabela_link)
         except TimeoutException:
             driver.execute_script("window.stop();")
 
-        time.sleep(5)
+        sucesso = aguarda_download_completo(downloads_path, arquivos_antes_download, timeout=90)
+        if not sucesso:
+            print(f"⚠️ Download de {tipo} não confirmado dentro do timeout")
+            driver.save_screenshot(f'safra_{tipo}_download_timeout.png')
+
         print(f"✅ Download concluído para {tipo}")
 
     except TimeoutException as e:
@@ -308,13 +429,20 @@ def get_VBP(driver, link):
         link_vbp = links[0].get_attribute("href")
         print(f"Link VBP encontrado: {link_vbp}")
 
+        # 🛑 FIX: snapshot antes do clique que dispara o download
+        arquivos_antes_download = os.listdir(downloads_path)
+
         try:
             driver.get(link_vbp)
         except TimeoutException:
             print(f"⚠️ Timeout ao acessar VBP, continuando...")
             driver.execute_script("window.stop();")
 
-        time.sleep(5)
+        sucesso = aguarda_download_completo(downloads_path, arquivos_antes_download, timeout=90)
+        if not sucesso:
+            print("⚠️ Download de VBP não confirmado dentro do timeout")
+            driver.save_screenshot('vbp_download_timeout.png')
+
         print("✅ VBP concluído")
 
     except Exception as e:
@@ -373,12 +501,19 @@ def get_credito_rural(driver, link):
         href = link_doc.get_attribute("href")
         print(f"Link encontrado: {href}")
 
+        # 🛑 FIX: snapshot antes do clique que dispara o download
+        arquivos_antes_download = os.listdir(downloads_path)
+
         try:
             driver.get(href)
         except TimeoutException:
             driver.execute_script("window.stop();")
 
-        time.sleep(5)
+        sucesso = aguarda_download_completo(downloads_path, arquivos_antes_download, timeout=90)
+        if not sucesso:
+            print("⚠️ Download de Crédito Rural não confirmado dentro do timeout")
+            driver.save_screenshot('credito_rural_download_timeout.png')
+
         print("✅ Crédito Rural concluído")
 
     except Exception as e:
@@ -447,12 +582,14 @@ def get_podas_tables(driver, link):
 
         links_arquivos = driver.find_elements(By.XPATH, '//td/p/a[@href]')
 
-        dados_poda_path = os.path.join(path_geral, 'dados_poda')
+        # 🛑 FIX: pasta temporária de poda criada dentro de downloads_path,
+        # nunca em path_geral (raiz do projeto).
+        dados_poda_path = os.path.join(downloads_path, 'dados_poda')
         os.makedirs(dados_poda_path, exist_ok=True)
 
         for link in links_arquivos:
             link_arch = link.get_attribute('href')
-            arquivos = os.listdir(path_geral)
+            arquivos = os.listdir(downloads_path)
 
             name = f'{link.text.replace("/","_")}'
 
@@ -502,13 +639,13 @@ def get_podas_tables(driver, link):
     dados_area_quantidade_df = pd.DataFrame(dados_area_quantidade)
     destino_poda = os.path.join(dados_teste_path, 'Indicadores_Poda.xlsx')
     if os.path.exists(destino_poda):
-        os.remove(destino_poda)
+        remove_seguro(destino_poda)
     dados_area_quantidade_df.to_excel(destino_poda, index=False)
     print(f"✅ Indicadores_Poda.xlsx salvo em dados_teste/")
 
     dados_baixados = os.listdir(dados_poda_path)
     for i in dados_baixados:
-        os.remove(os.path.join(dados_poda_path, i))
+        remove_seguro(os.path.join(dados_poda_path, i))
     os.rmdir(dados_poda_path)
 
 
@@ -600,14 +737,8 @@ def get_cultures_prices(driver, link):
         driver.execute_script("arguments[0].removeAttribute('expanded', '');", location_dropdown)
         print("✅ UFs selecionadas")
 
-        # Remove qualquer cópia antiga do arquivo (nome fixo do site) antes
-        # de disparar o novo download, evitando que o Chrome crie uma
-        # variante numerada '(1).xlsx' e quebre a detecção abaixo.
-        limpa_arquivo_antigo(path_geral, NOME_ARQUIVO_PRECOS)
-        # Atualiza a referência global usada por verify_new_download: sem
-        # isso, o nome (fixo) do arquivo recriado já estaria na lista antiga
-        # de 'arquivos' e nunca seria percebido como "novo".
-        arquivos = os.listdir(path_geral)
+        limpa_arquivo_antigo(downloads_path, NOME_ARQUIVO_PRECOS)  # 🛑 FIX: era path_geral
+        arquivos = os.listdir(downloads_path)
 
         button_consult = driver.find_element(By.XPATH, '//button[text()=" Consultar "]').click()
         time.sleep(1)
@@ -615,7 +746,7 @@ def get_cultures_prices(driver, link):
         button_download = driver.find_element(By.XPATH, '//button[@aria-label="Excel"]').click()
         print("✅ Botão Excel clicado, aguardando download...")
 
-        sucesso = aguarda_arquivo_especifico(path_geral, NOME_ARQUIVO_PRECOS, timeout=60)
+        sucesso = aguarda_arquivo_especifico(downloads_path, NOME_ARQUIVO_PRECOS, timeout=60)  # 🛑 FIX: era path_geral
         if not sucesso:
             driver.save_screenshot('precos_cultivos_timeout.png')
             raise FileNotFoundError(f"Download de '{NOME_ARQUIVO_PRECOS}' não foi concluído a tempo")
@@ -628,11 +759,98 @@ def get_cultures_prices(driver, link):
         raise
 
 
-def get_pib_values(driver, link):
-    driver.get(link)
-    time.sleep(2)
-    archive = driver.find_element(By.XPATH, '//*[@id="imagenet-content"]/div[2]/div[1]/div/div/div[1]/div[1]/p[9]/a').click()
-    time.sleep(2)
+def pagina_tem_cloudflare_challenge(driver):
+    """
+    Detecta heuristicamente se a página atual é uma tela de verificação
+    anti-bot do Cloudflare (ex: 'Confirme que é humano'), em vez do
+    conteúdo real esperado. Usado em get_pib_values porque o domínio do
+    CEPEA (cepea.org.br / cepea.esalq.usp.br são espelhos do mesmo site)
+    às vezes serve esse desafio antes de liberar a página com o link do
+    Excel do PIB.
+    """
+    try:
+        texto = driver.page_source.lower()
+    except Exception:
+        return False
+
+    indicadores = [
+        "verificação de segurança",
+        "confirme que é humano",
+        "checking your browser",
+        "cloudflare",
+        "cf-challenge",
+        "just a moment",
+    ]
+    return any(termo in texto for termo in indicadores)
+
+
+def get_pib_values(driver, link, tentativas=3, espera_challenge=15):
+    """
+    🛑 FIX: o domínio do CEPEA por vezes redireciona para uma versão
+    protegida por Cloudflare ('Confirme que é humano'), o que travava o
+    wait_local.until() até dar timeout e quebrar a sessão do ChromeDriver
+    (erro de stacktrace gigante observado em produção). Agora a função
+    detecta esse desafio e tenta novamente após uma pausa, em vez de
+    insistir cegamente num elemento que nunca vai aparecer naquela carga.
+    """
+    for tentativa in range(1, tentativas + 1):
+        try:
+            # ✅ FIX: usa wait local para não depender do estado do wait global
+            wait_local = WebDriverWait(driver, 30)
+
+            driver.get(link)
+            time.sleep(3)
+
+            if pagina_tem_cloudflare_challenge(driver):
+                print(f"⚠️ Verificação anti-bot detectada (tentativa {tentativa}/{tentativas}), aguardando {espera_challenge}s...")
+                driver.save_screenshot(f'pib_cloudflare_tentativa{tentativa}.png')
+                time.sleep(espera_challenge)
+                driver.get(link)  # tenta de novo, às vezes resolve sozinho ou cai no domínio sem desafio
+                time.sleep(3)
+
+                if pagina_tem_cloudflare_challenge(driver):
+                    print(f"⚠️ Verificação anti-bot persistiu na tentativa {tentativa}/{tentativas}")
+                    if tentativa < tentativas:
+                        continue  # parte para a próxima tentativa do laço externo
+                    else:
+                        print("❌ Não foi possível passar da verificação anti-bot do CEPEA após todas as tentativas")
+                        return
+
+            archive = wait_local.until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, '//a[contains(@href, ".xlsx") or contains(@href, ".xls")]')
+                )
+            )
+
+            # 🛑 FIX: snapshot antes do clique que dispara o download
+            arquivos_antes_download = os.listdir(downloads_path)
+
+            archive.click()
+
+            sucesso = aguarda_download_completo(downloads_path, arquivos_antes_download, timeout=90)
+            if sucesso:
+                print("✅ PIB clicado")
+                return
+            else:
+                print(f"⚠️ Download de PIB não confirmado dentro do timeout (tentativa {tentativa}/{tentativas})")
+                driver.save_screenshot(f'pib_download_timeout_tentativa{tentativa}.png')
+
+        except TimeoutException as e:
+            print(f"⏱️ Timeout em get_pib_values (tentativa {tentativa}/{tentativas}): {e}")
+            driver.save_screenshot(f'pib_timeout_tentativa{tentativa}.png')
+        except (InvalidSessionIdException, WebDriverException) as e:
+            # 🛑 A sessão do ChromeDriver morreu (ex: após o stacktrace gigante
+            # observado quando o Cloudflare travava a página por muito tempo).
+            # Continuar tentando não vai funcionar; melhor abortar com um
+            # diagnóstico claro do que insistir em chamadas que vão falhar igual.
+            print(f"💀 Sessão do ChromeDriver parece ter morrido em get_pib_values: {e}")
+            print("💀 Abortando tentativas de PIB — pode ser necessário reiniciar o driver.")
+            return
+        except Exception as e:
+            print(f'❌ Erro em get_pib_values (tentativa {tentativa}/{tentativas}): {e}')
+            driver.save_screenshot(f'pib_erro_tentativa{tentativa}.png')
+
+    print("❌ Todas as tentativas de obter o PIB falharam")
 
 
 # ==========================================================
@@ -647,7 +865,8 @@ link_dolar = 'https://www.bcb.gov.br/estabilidadefinanceira/historicocotacoes'
 link_credito_rural = 'https://www.bndes.gov.br/wps/portal/site/home/transparencia/consulta-operacoes-bndes/credito-rural-desempenho-operacional'
 link_podas = 'https://www.ibge.gov.br/explica/producao-agropecuaria/br'
 link_precos_cultivos = 'https://consultaprecosdemercado.conab.gov.br/#/home'
-link_pib_agro = 'https://www.cepea.org.br/br/pib-do-agronegocio-brasileiro.aspx'
+# ✅ FIX: domínio atualizado de cepea.org.br → cepea.esalq.usp.br
+link_pib_agro = 'https://www.cepea.esalq.usp.br/br/pib-do-agronegocio-brasileiro.aspx'
 
 
 # ==========================================================
@@ -655,24 +874,22 @@ link_pib_agro = 'https://www.cepea.org.br/br/pib-do-agronegocio-brasileiro.aspx'
 # ==========================================================
 
 try:
-    # Limpeza inicial: remove arquivos antigos de execuções passadas em
-    # path_geral. Usa os.path.isfile (a versão anterior usava 'ispath' do
-    # módulo pydoc, que NÃO verifica se é um arquivo válido — quase sempre
-    # retorna True para qualquer string, então a limpeza nunca acontecia).
-    archs = os.listdir(path_geral)
+    # 🛑 FIX: a limpeza inicial agora opera em downloads_path (pasta exclusiva
+    # de downloads), nunca mais em path_geral (raiz do projeto/código-fonte).
+    archs = os.listdir(downloads_path)
     if len(archs) > 0:
         for i in archs:
-            complete_path = os.path.join(path_geral, i)
+            complete_path = os.path.join(downloads_path, i)
             if os.path.isfile(complete_path):
                 print(f"🗑️ Removendo arquivo antigo: {complete_path}")
-                os.remove(complete_path)
+                remove_seguro(complete_path)
 
-    arquivos = os.listdir(path_geral)
+    arquivos = os.listdir(downloads_path)
     tempo_inicial = datetime.now()
 
-    get_safras(driver, link_cafe, "café")
-    verify_new_download("Café")
-    move_to_dados_teste("Café.xlsx")
+    get_safras(driver, link_cafe, "cafe")
+    verify_new_download("Cafe")
+    move_to_dados_teste("Cafe.xlsx")
 
     get_safras(driver, link_graos, "graos")
     verify_new_download("Graos")
@@ -681,6 +898,51 @@ try:
     get_safras(driver, link_cana, "cana")
     verify_new_download("Cana")
     move_to_dados_teste("Cana.xlsx")
+
+    # --- Consolida os 3 em um único Safras.xlsx ---
+    safras_origem = {
+        "Cafe":  os.path.join(dados_teste_path, "Cafe.xlsx"),
+        "Graos": os.path.join(dados_teste_path, "Graos.xlsx"),
+        "Cana":  os.path.join(dados_teste_path, "Cana.xlsx"),
+    }
+    safras_dest = os.path.join(dados_teste_path, "Safras.xlsx")
+
+    if os.path.exists(safras_dest):
+        remove_seguro(safras_dest)
+        print("🗑️ Safras.xlsx antigo removido")
+
+    with pd.ExcelWriter(safras_dest, engine="openpyxl") as writer:
+        nomes_usados = []
+
+        for cultura, caminho in safras_origem.items():
+            if not os.path.exists(caminho):
+                print(f"⚠️ Arquivo não encontrado, pulando: {caminho}")
+                continue
+
+            xl = pd.ExcelFile(caminho, engine="openpyxl")
+
+            for aba in xl.sheet_names:
+                df_aba = pd.read_excel(caminho, sheet_name=aba, engine="openpyxl", header=None)
+
+                if df_aba.dropna(how="all").empty:
+                    print(f"⏭️ Aba vazia ignorada: [{cultura}] {aba}")
+                    continue
+
+                prefixo = cultura[:3].upper()
+                nome_base = f"{prefixo} - {aba}"[:31]
+
+                nome_final = nome_base
+                contador = 1
+                while nome_final in nomes_usados:
+                    sufixo = f"_{contador}"
+                    nome_final = nome_base[:31 - len(sufixo)] + sufixo
+                    contador += 1
+
+                nomes_usados.append(nome_final)
+                df_aba.to_excel(writer, sheet_name=nome_final, index=False, header=False)
+                print(f"✅ Aba adicionada: {nome_final}")
+
+    print("✅ Safras.xlsx consolidado com sucesso!")
 
     get_VBP(driver, link_VBP)
     verify_new_download("VBP")
@@ -691,12 +953,17 @@ try:
     move_to_dados_teste("Credito Rural.xlsx", "Credito_Rural.xlsx")
 
     get_cultures_prices(driver, link_precos_cultivos)
-    verify_new_download("Preço Cultivos")
-    move_to_dados_teste("Preço Cultivos.xlsx")
+    move_to_dados_teste("Consulta-precos-mensal.xlsx", "Preço Cultivos.xlsx")
 
     get_pib_values(driver, link_pib_agro)
-    verify_new_download("PIB Agro")
-    move_to_dados_teste("PIB Agro.xlsx", "PIB.xlsx")
+    # ✅ FIX: captura extensão real do arquivo (pode ser .xls ou .xlsx)
+    nome_pib = verify_new_download("PIB")
+    move_to_dados_teste(nome_pib, "PIB.xlsx")
+
+    get_dolar(driver, link_dolar)
+    # ✅ FIX: captura extensão real do arquivo (é .csv, não .xlsx)
+    nome_dolar = verify_new_download("Dolar")
+    move_to_dados_teste(nome_dolar, "Dolar.csv")
 
     # Podas já salva direto em dados_teste/ dentro da própria função
     get_podas_tables(driver, link_podas)

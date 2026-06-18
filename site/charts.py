@@ -590,52 +590,179 @@ def create_fert_charts():
 
 
 def create_safra_charts():
-    """Cria gráficos de barras agrupadas por cultivo para dados de Safras"""
+    """Cria gráficos de área plantada por produto a partir do arquivo Safras.xlsx (CONAB)"""
     charts = []
 
-    try:
-        df = pd.read_excel('dados_teste/Safras.xlsx')
-    except FileNotFoundError:
-        df = pd.DataFrame({
-            'Cultivo': ['Café', 'Café', 'Cana', 'Cana', 'Grão', 'Grão'],
-            'Safra': ['2020/21', '2021/22', '2020/21', '2021/22', '2020/21', '2021/22'],
-            'Medida': ['Área(milhão ha)', 'Área(milhão ha)', 'Produção(milhão ton)', 'Produção(milhão ton)', 'Produtividade(mil kg/há)', 'Produtividade(mil kg/há)'],
-            'Valor': [1.5, 1.6, 600, 650, 4.5, 4.8]
+    # --- Produtos principais a exibir (filtra sub-itens e totalizadores) ---
+    PRODUTOS_VERAO = [
+        'ALGODÃO', 'AMENDOIM TOTAL', 'ARROZ', 'FEIJÃO TOTAL',
+        'GERGELIM', 'GIRASSOL', 'MAMONA', 'MILHO TOTAL', 'SOJA', 'SORGO'
+    ]
+    PRODUTOS_INVERNO = ['AVEIA', 'CANOLA', 'CENTEIO', 'CEVADA', 'TRIGO', 'TRITICALE']
+
+    def parse_area_sheet(filepath):
+        """Lê a aba GRA - Área_Brasil e retorna DataFrames estruturados."""
+        try:
+            df_raw = pd.read_excel(filepath, sheet_name='GRA - Área_Brasil', header=None)
+        except Exception as e:
+            print(f"⚠️ Erro ao ler Safras.xlsx: {e}")
+            return None, None
+
+        # Safras verão: linhas 4 a 35 (índice 4..35 inclusive)
+        # Safras inverno: linhas 40 a 45 (índice 40..45 inclusive)
+        # Colunas: 0=Produto, 1=24/25(a), 2=25/26 mai(b), 3=25/26 jun(c)
+        SAFRA_A = '24/25'
+        SAFRA_B = '25/26 (mai)'
+        SAFRA_C = '25/26 (jun)'
+
+        def extrair_linhas(linhas_raw, produtos_filtro):
+            rows = []
+            for _, row in linhas_raw.iterrows():
+                prod = str(row.iloc[0]).strip()
+                if prod == 'nan' or prod == '':
+                    continue
+                if prod.upper() not in [p.upper() for p in produtos_filtro]:
+                    continue
+                for safra_label, col_idx in [(SAFRA_A, 1), (SAFRA_B, 2), (SAFRA_C, 3)]:
+                    try:
+                        val = float(row.iloc[col_idx])
+                        rows.append({'Produto': prod.upper(), 'Safra': safra_label, 'Área (mil ha)': val})
+                    except (ValueError, TypeError):
+                        pass
+            return pd.DataFrame(rows)
+
+        df_verao = extrair_linhas(df_raw.iloc[4:36], PRODUTOS_VERAO)
+        df_inverno = extrair_linhas(df_raw.iloc[40:46], PRODUTOS_INVERNO)
+        return df_verao, df_inverno
+
+    df_verao, df_inverno = parse_area_sheet('dados_teste/Safras.xlsx')
+
+    if df_verao is None:
+        # Fallback com dados de exemplo
+        df_verao = pd.DataFrame({
+            'Produto': ['SOJA', 'SOJA', 'MILHO TOTAL', 'MILHO TOTAL'],
+            'Safra': ['24/25', '25/26 (jun)', '24/25', '25/26 (jun)'],
+            'Área (mil ha)': [47346, 48563, 21838, 22582]
+        })
+        df_inverno = pd.DataFrame({
+            'Produto': ['TRIGO', 'TRIGO', 'AVEIA', 'AVEIA'],
+            'Safra': ['2025', '25/26 (jun)', '2025', '25/26 (jun)'],
+            'Área (mil ha)': [2446, 2117, 546, 536]
         })
 
-    df['Cultivo'] = df['Cultivo'].replace('Grãos', 'Grão')
+    # --- Gráfico 1: Área plantada - Grãos de Verão (barras agrupadas por safra) ---
+    if not df_verao.empty:
+        safras = df_verao['Safra'].unique().tolist()
+        cores = [BLUE, '#5b8dd9', ORANGE]
 
-    medida_colors = {
-        'Área(milhão ha)': BLUE,
-        'Produção(milhão ton)': 'rgba(128, 0, 128, 0.8)',
-        'Produção(milhão sc)': 'rgba(128, 0, 128, 0.8)',
-        'Produtividade(mil kg/há)': ORANGE,
-        'Produtividade(sc/há)': ORANGE
-    }
-
-    for cultivo in ['Café', 'Cana', 'Grão']:
-        df_cultivo = df[df['Cultivo'] == cultivo]
-        if df_cultivo.empty:
-            continue
-
-        fig = go.Figure()
-        for medida in df_cultivo['Medida'].unique():
-            df_medida = df_cultivo[df_cultivo['Medida'] == medida]
-            fig.add_trace(go.Bar(
-                x=df_medida['Safra'], y=df_medida['Valor'],
-                name=medida,
-                marker=dict(color=medida_colors.get(medida, 'rgba(128, 128, 128, 0.8)'), cornerradius=10),
-                text=df_medida['Valor'].round(2),
-                textposition='outside', textfont=dict(size=10)
+        fig_verao = go.Figure()
+        for i, safra in enumerate(safras):
+            df_s = df_verao[df_verao['Safra'] == safra]
+            fig_verao.add_trace(go.Bar(
+                x=df_s['Produto'],
+                y=df_s['Área (mil ha)'],
+                name=safra,
+                marker=dict(color=cores[i % len(cores)], cornerradius=8),
+                text=df_s['Área (mil ha)'].apply(lambda v: f"{v:,.0f}".replace(',', '.')),
+                textposition='outside',
+                cliponaxis=False,
             ))
 
-        fig.update_layout(
-            title=f'Safra {cultivo}',
-            xaxis_title='Safra', yaxis_title='Valor',
-            template='plotly_white', barmode='group',
-            legend=dict(orientation="h", yanchor="bottom", y=-0.4, xanchor="center", x=0.5)
+        fig_verao.update_layout(
+            title='Área Plantada — Grãos de Verão (mil ha)',
+            xaxis_title='Produto',
+            yaxis_title='Área (mil ha)',
+            barmode='group',
+            template='plotly_white',
+            height=500,
+            legend=dict(orientation='h', yanchor='bottom', y=-0.35, xanchor='center', x=0.5),
+            xaxis=dict(tickangle=-30),
+            yaxis=dict(showgrid=True),
         )
-        charts.append({'title': f'Safra {cultivo}', 'chart': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)})
+        charts.append({
+            'title': 'Área Plantada — Grãos de Verão',
+            'chart': json.dumps(fig_verao, cls=plotly.utils.PlotlyJSONEncoder)
+        })
+
+    # --- Gráfico 2: Área plantada - Culturas de Inverno ---
+    if not df_inverno.empty:
+        safras = df_inverno['Safra'].unique().tolist()
+        cores = [BLUE, '#5b8dd9', ORANGE]
+
+        fig_inverno = go.Figure()
+        for i, safra in enumerate(safras):
+            df_s = df_inverno[df_inverno['Safra'] == safra]
+            fig_inverno.add_trace(go.Bar(
+                x=df_s['Produto'],
+                y=df_s['Área (mil ha)'],
+                name=safra,
+                marker=dict(color=cores[i % len(cores)], cornerradius=8),
+                text=df_s['Área (mil ha)'].apply(lambda v: f"{v:,.0f}".replace(',', '.')),
+                textposition='outside',
+                cliponaxis=False,
+            ))
+
+        fig_inverno.update_layout(
+            title='Área Plantada — Culturas de Inverno (mil ha)',
+            xaxis_title='Produto',
+            yaxis_title='Área (mil ha)',
+            barmode='group',
+            template='plotly_white',
+            height=450,
+            legend=dict(orientation='h', yanchor='bottom', y=-0.35, xanchor='center', x=0.5),
+            yaxis=dict(showgrid=True),
+        )
+        charts.append({
+            'title': 'Área Plantada — Culturas de Inverno',
+            'chart': json.dumps(fig_inverno, cls=plotly.utils.PlotlyJSONEncoder)
+        })
+
+    # --- Gráfico 3: Variação % entre 25/26 mai e 25/26 jun (top culturas) ---
+    try:
+        df_raw = pd.read_excel('dados_teste/Safras.xlsx', sheet_name='GRA - Área_Brasil', header=None)
+        # col 4 = variação % (c/b) = jun vs mai
+        var_rows = []
+        for _, row in df_raw.iloc[4:36].iterrows():
+            prod = str(row.iloc[0]).strip().upper()
+            if prod in PRODUTOS_VERAO:
+                try:
+                    var_rows.append({'Produto': prod, 'Var % (jun/mai)': float(row.iloc[4])})
+                except (ValueError, TypeError):
+                    pass
+        for _, row in df_raw.iloc[40:46].iterrows():
+            prod = str(row.iloc[0]).strip().upper()
+            if prod in PRODUTOS_INVERNO:
+                try:
+                    var_rows.append({'Produto': prod, 'Var % (jun/mai)': float(row.iloc[4])})
+                except (ValueError, TypeError):
+                    pass
+
+        df_var = pd.DataFrame(var_rows).sort_values('Var % (jun/mai)', ascending=True)
+
+        cores_var = [ORANGE if v < 0 else BLUE for v in df_var['Var % (jun/mai)']]
+        fig_var = go.Figure(go.Bar(
+            x=df_var['Var % (jun/mai)'],
+            y=df_var['Produto'],
+            orientation='h',
+            marker=dict(color=cores_var, cornerradius=6),
+            text=df_var['Var % (jun/mai)'].apply(lambda v: f"{v:+.1f}%"),
+            textposition='outside',
+            cliponaxis=False,
+        ))
+        fig_var.update_layout(
+            title='Variação da Área Plantada: jun/2026 vs mai/2026 (%)',
+            xaxis_title='Variação (%)',
+            yaxis_title='',
+            template='plotly_white',
+            height=480,
+            xaxis=dict(showgrid=True, zeroline=True, zerolinewidth=2, zerolinecolor='gray'),
+        )
+        charts.append({
+            'title': 'Variação Área Plantada (jun vs mai)',
+            'chart': json.dumps(fig_var, cls=plotly.utils.PlotlyJSONEncoder)
+        })
+    except Exception as e:
+        print(f"⚠️ Gráfico de variação não gerado: {e}")
 
     return charts
 
