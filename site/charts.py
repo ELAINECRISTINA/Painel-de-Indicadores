@@ -9,6 +9,7 @@ from datetime import datetime
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
+import re
 
 BLUE = "#15458f"
 ORANGE = "#EC6608"
@@ -392,16 +393,51 @@ def create_pulv_charts():
     return all_charts
 
 
+def _parse_periodo(p):
+    """Extrai o ano (int) de strings como '(2024)' ou '2024'."""
+    if pd.isna(p):
+        return None
+    m = re.search(r'(\d{4})', str(p))
+    return int(m.group(1)) if m else None
+
+
+def _parse_dado(d):
+    """Extrai o valor numérico de strings como '25.310 Hectares' (formato BR)
+    ou retorna o próprio float quando já vem numérico."""
+    if pd.isna(d):
+        return None
+    if isinstance(d, (int, float)):
+        return float(d)
+    num = re.match(r'[\d\.\,]+', str(d).strip())
+    if not num:
+        return None
+    num_str = num.group(0).replace('.', '').replace(',', '.')
+    try:
+        return float(num_str)
+    except ValueError:
+        return None
+
+
 def create_podas_charts():
     all_charts = []
 
     try:
-        podas = pd.read_excel('dados_teste/Indicadores_Poda.xlsx')
-    except FileNotFoundError:
-        podas = pd.DataFrame({'Year': [2021, 2022, 2023], 'Área Colhida': [1000, 1500, 1200], 'CUSTO POR HA': [500, 550, 600]})
+        podas_raw = pd.read_excel('dados_teste/Indicadores_Poda.xlsx')
+        podas_raw['Year'] = podas_raw['periodo'].apply(_parse_periodo)
+        podas_raw['valor'] = podas_raw['dado'].apply(_parse_dado)
 
-    podas_anual = podas.groupby('Year')['Área Colhida'].mean().reset_index()
-    podas_anual_mean = podas.groupby('Year')['CUSTO POR HA'].mean().reset_index()
+        podas = podas_raw[podas_raw['variavel'] == 'Área colhida'].copy()
+        podas_custo = podas_raw[podas_raw['variavel'] == 'Custo por Hectare'].copy()
+
+        podas_anual = podas.groupby('Year')['valor'].mean().reset_index()
+        podas_anual = podas_anual.rename(columns={'valor': 'Área Colhida'})
+
+        podas_anual_mean = podas_custo.groupby('Year')['valor'].mean().reset_index()
+        podas_anual_mean = podas_anual_mean.rename(columns={'valor': 'CUSTO POR HA'})
+
+    except FileNotFoundError:
+        podas_anual = pd.DataFrame({'Year': [2021, 2022, 2023], 'Área Colhida': [1000, 1500, 1200]})
+        podas_anual_mean = pd.DataFrame({'Year': [2021, 2022, 2023], 'CUSTO POR HA': [500, 550, 600]})
 
     fig_podas = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]], horizontal_spacing=0.05)
     fig_podas.add_trace(
@@ -430,6 +466,8 @@ def create_podas_charts():
     fig_podas.update_yaxes(secondary_y=False, tickformat=',.0f')
     fig_podas.update_yaxes(tickprefix='R$ ', secondary_y=True, showgrid=False)
     all_charts.append({'title': 'Indicadores de Poda', 'chart': json.dumps(fig_podas, cls=plotly.utils.PlotlyJSONEncoder)})
+
+    # --- A partir daqui, sem alterações: PIB Agro e PIB x Vendas Jacto ---
 
     try:
         pib_agro = pd.read_excel('dados_teste/PIB.xlsx')
