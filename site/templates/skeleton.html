@@ -1,0 +1,194 @@
+<script src="{{ url_for('static', filename='js/plotly.min.js') }}"></script>
+
+<div class="content-wrapper">
+    <div class="dashboard-content">
+        <div class="container-fluid">
+            <div id="charts-container" class="row">
+                <div class="col-12 text-center py-5" id="loading-msg">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-3 text-muted" id="loading-text">Carregando gráficos...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+
+    // ── 1. Verifica Plotly ────────────────────────────────────
+    if (typeof Plotly === "undefined") {
+        mostrarErro("❌ Plotly não carregou! Verifique /static/js/plotly.min.js");
+        return;
+    }
+    console.log("✅ Plotly OK — versão:", Plotly.version);
+
+    // ── 2. Pega a URL de dados ────────────────────────────────
+    var DATA_URL = "{{ data_url | safe }}";
+    console.log("📡 data_url recebida do Flask:", DATA_URL);
+
+    if (!DATA_URL || DATA_URL.trim() === "") {
+        mostrarErro("❌ data_url está vazia! Verifique skeleton_waiter() no app.py");
+        return;
+    }
+
+    atualizarTexto("Conectando ao servidor...");
+
+    // ── 3. Fetch ──────────────────────────────────────────────
+    fetch(DATA_URL, {
+        method: "GET",
+        headers: { "Accept": "application/json" }
+    })
+    .then(function (res) {
+        console.log("📥 Status HTTP:", res.status);
+        console.log("📥 Content-Type:", res.headers.get("content-type"));
+
+        atualizarTexto("Resposta recebida (status " + res.status + "), processando...");
+
+        if (!res.ok) {
+            throw new Error("Servidor retornou erro HTTP " + res.status);
+        }
+
+        // ✅ Verifica se é realmente JSON
+        var contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+            // Lê como texto para mostrar o que veio
+            return res.text().then(function (txt) {
+                console.error("❌ Resposta NÃO é JSON! Primeiros 300 chars:", txt.substring(0, 300));
+                throw new Error(
+                    "Servidor retornou HTML em vez de JSON. " +
+                    "Verifique se a rota retorna jsonify(). " +
+                    "Conteúdo: " + txt.substring(0, 100)
+                );
+            });
+        }
+
+        return res.json();
+    })
+    .then(function (data) {
+        console.log("✅ JSON recebido. Chaves:", Object.keys(data));
+        console.log("📊 Quantidade de gráficos:", data.charts ? data.charts.length : 0);
+
+        atualizarTexto("Renderizando gráficos...");
+
+        var charts = data.charts;
+
+        if (!charts || charts.length === 0) {
+            mostrarErro("⚠️ Servidor retornou 0 gráficos. Verifique os dados no servidor.");
+            return;
+        }
+
+        // Remove spinner
+        var loading = document.getElementById("loading-msg");
+        if (loading) loading.remove();
+
+        // Renderiza cada gráfico
+        charts.forEach(function (chart, i) {
+            renderGrafico(chart, i + 1);
+        });
+    })
+    .catch(function (err) {
+        console.error("❌ Erro no fetch:", err);
+        mostrarErro("Falha ao carregar: " + err.message);
+    });
+
+    // ── Renderiza um gráfico ──────────────────────────────────
+    function renderGrafico(chart, index) {
+        try {
+            console.log("🎨 Renderizando gráfico", index, "— título:", chart.title);
+            console.log("   Tipo de chart.chart:", typeof chart.chart);
+
+            var container = document.getElementById("charts-container");
+
+            // Cria o card
+            var col = document.createElement("div");
+            col.className = "col-12 mb-4";
+            col.innerHTML =
+                '<div class="card border-0 shadow-sm">' +
+                    '<div class="card-header bg-light">' +
+                        '<h5 class="mb-0">' + escapeHtml(chart.title || "Gráfico " + index) + '</h5>' +
+                    '</div>' +
+                    '<div class="card-body p-0 d-flex justify-content-center">' +
+                        '<div style="width: 85%;">' +
+                            '<div id="chart-' + index + '" style="min-height:520px; width:100%;"></div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            container.appendChild(col);
+
+            // Parseia o JSON do gráfico
+            var chartData;
+            if (typeof chart.chart === "string") {
+                console.log("   chart.chart é string, fazendo JSON.parse...");
+                chartData = JSON.parse(chart.chart);
+            } else if (typeof chart.chart === "object") {
+                console.log("   chart.chart já é objeto JS");
+                chartData = chart.chart;
+            } else {
+                throw new Error("chart.chart tem tipo inesperado: " + typeof chart.chart);
+            }
+
+            if (!chartData.data) {
+                throw new Error("chartData não tem campo 'data'");
+            }
+
+            console.log("   Traces:", chartData.data.length, "| Layout title:", chartData.layout && chartData.layout.title);
+
+            Plotly.newPlot(
+                "chart-" + index,
+                chartData.data,
+                chartData.layout || {},
+                { responsive: true, displaylogo: false }
+            );
+
+            console.log("✅ Gráfico", index, "renderizado com sucesso!");
+
+        } catch (e) {
+            console.error("❌ Erro no gráfico " + index + ":", e);
+            var el = document.getElementById("chart-" + index);
+            if (el) {
+                el.innerHTML =
+                    '<div class="alert alert-warning m-4">' +
+                    '<strong>Gráfico ' + index + ' indisponível:</strong> ' + e.message +
+                    '</div>';
+            }
+        }
+    }
+
+    // ── Utilitários ───────────────────────────────────────────
+    function mostrarErro(msg) {
+        console.error("ERRO EXIBIDO:", msg);
+        var el = document.getElementById("loading-msg");
+        if (el) {
+            el.innerHTML =
+                '<div class="col-12">' +
+                '<div class="alert alert-danger m-4 text-start">' +
+                '<strong>Erro ao carregar gráficos:</strong><br>' + msg +
+                '</div></div>';
+        }
+    }
+
+    function atualizarTexto(msg) {
+        var el = document.getElementById("loading-text");
+        if (el) el.textContent = msg;
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    // ── Resize responsivo ─────────────────────────────────────
+    window.addEventListener("resize", function () {
+        document.querySelectorAll('[id^="chart-"]').forEach(function (el) {
+            if (el.children.length > 0) {
+                try { Plotly.Plots.resize(el); } catch (e) {}
+            }
+        });
+    });
+
+})();
+</script>

@@ -4,10 +4,13 @@ import shutil
 import logging
 from datetime import datetime, timedelta
 import locale
+import traceback
 import pyautogui
 import pandas as pd
 import openpyxl
 import re
+from urllib.parse import urlparse, urljoin
+
 
 import requests
 from bs4 import BeautifulSoup
@@ -568,7 +571,7 @@ def get_podas_tables(driver, link):
             name = f'{link.text.replace("/","_")}'
 
             try:
-                response = requests.get(link_arch, stream=True, timeout=10)
+                response = requests.get(link_arch, stream=True, verify=False, timeout=10)
                 if response.status_code == 200:
                     with open(os.path.join(dados_poda_path, name), 'wb') as f:
                         for chunk in response.iter_content(chunk_size=8192):
@@ -767,6 +770,7 @@ def get_cultures_prices(driver, link):
 
     except Exception as e:
         print(f"❌ Erro em get_cultures_prices: {e}")
+        traceback.print_exc()
         driver.save_screenshot('precos_cultivos_erro.png')
         raise
 
@@ -810,7 +814,7 @@ def get_pib_values_direto(pasta_downloads, url_direta=None):
 
     try:
         response = requests.get(
-            url_direta, headers=headers, timeout=60, stream=True
+            url_direta, headers=headers, timeout=60, stream=True, verify=False
         )
         response.raise_for_status()
 
@@ -846,23 +850,22 @@ def get_pib_values_direto(pasta_downloads, url_direta=None):
 
 
 def get_pib_url_dinamica(pagina_url):
-    """
-    ✅ Busca a URL do Excel do PIB na página do CEPEA via requests puro
-    (sem Selenium), evitando o Cloudflare Turnstile. Usado como fallback
-    caso a URL direta mude.
-    """
+    # Extrai a origem (ex: "https://www.cepea.esalq.usp.br") da própria URL alvo
+    parsed = urlparse(pagina_url)
+    origem = f"{parsed.scheme}://{parsed.netloc}"
+
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/124.0.0.0 Safari/537.36"
         ),
-        "Referer": "https://www.google.com/",
+        "Referer": origem,  # ✅ Simula navegação interna do próprio site
         "Accept-Language": "pt-BR,pt;q=0.9",
     }
 
     try:
-        resp = requests.get(pagina_url, headers=headers, timeout=30)
+        resp = requests.get(pagina_url, headers=headers, timeout=30, verify=False)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -872,8 +875,7 @@ def get_pib_url_dinamica(pagina_url):
                 if href.startswith("http"):
                     return href
                 else:
-                    from urllib.parse import urljoin
-                    return urljoin(pagina_url, href)
+                    return urljoin(pagina_url, href)  # ✅ import já feito no topo
 
     except Exception as e:
         print(f"⚠️ Não foi possível descobrir URL dinâmica do PIB: {e}")
